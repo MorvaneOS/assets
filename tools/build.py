@@ -11,6 +11,7 @@ converted to outlines, so the SVGs don't depend on any installed font.
 
 import io
 import math
+import random
 import shutil
 import subprocess
 import urllib.request
@@ -43,9 +44,9 @@ MOON_CUT = (55.0, 25.0, 8.0)  # the disc cut away to leave the crescent
 STARS = [(22.0, 18.0, 1.8), (80.0, 14.0, 1.4)]
 
 
-def _crescent_path() -> str:
+def crescent_path(outer: tuple[float, float, float] = MOON_OUTER, cut: tuple[float, float, float] = MOON_CUT) -> str:
 	"""Crescent as a plain path (no SVG mask), so every renderer can draw it, Qt's included."""
-	(x1, y1, r1), (x2, y2, r2) = MOON_OUTER, MOON_CUT
+	(x1, y1, r1), (x2, y2, r2) = outer, cut
 	d = math.hypot(x2 - x1, y2 - y1)
 	a = (r1 * r1 - r2 * r2 + d * d) / (2 * d)
 	h = math.sqrt(r1 * r1 - a * a)
@@ -75,7 +76,7 @@ def _crescent_path() -> str:
 	)
 
 
-CRESCENT = _crescent_path()
+CRESCENT = crescent_path()
 
 # Colour schemes for the mark: (peaks, moon and stars)
 SCHEMES = {
@@ -251,6 +252,139 @@ def app_icon(theme: str) -> str:
 	return svg(size, size, body, 'MorvaneOS')
 
 
+# ---------------------------------------------------------------- wallpapers
+
+# Designed at 3840 wide; the height sets the aspect ratio. Everything is laid
+# out in units of the height, so 16:10 gets the same scene a little taller.
+WALLPAPER_SIZES = {
+	'16x9': [(3840, 2160), (2560, 1440), (1920, 1080)],
+	'16x10': [(3840, 2400), (2560, 1600), (1920, 1200)],
+}
+WALLPAPER_WIDTH = 3840
+
+
+def _ridge(rng: random.Random, width: float, base: float, amplitude: float, roughness: float = 0.55) -> list[tuple[float, float]]:
+	"""A mountain skyline across the width (midpoint displacement)."""
+	n = 129
+	ys = [0.0] * n
+	ys[0], ys[-1] = rng.uniform(-1, 1), rng.uniform(-1, 1)
+	step, scale = n - 1, 1.0
+	while step > 1:
+		half = step // 2
+		for i in range(half, n - 1, step):
+			ys[i] = (ys[i - half] + ys[i + half]) / 2 + rng.uniform(-1, 1) * scale
+		step, scale = half, scale * roughness
+	return [(width * i / (n - 1), base + amplitude * y) for i, y in enumerate(ys)]
+
+
+def _fill_below(points: list[tuple[float, float]], bottom: float, colour: str) -> str:
+	pts = ' '.join(f'{x:.1f},{y:.1f}' for x, y in points)
+	return f'<polygon fill="{colour}" points="0,{bottom:.1f} {pts} {points[-1][0]:.1f},{bottom:.1f}"/>'
+
+
+def _sky(w: float, h: float) -> str:
+	return (
+		'<defs>'
+		'<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">'
+		'<stop offset="0" stop-color="#0B070E"/><stop offset="0.45" stop-color="#140D19"/>'
+		'<stop offset="0.7" stop-color="#2E1A34"/><stop offset="1" stop-color="#4E2A48"/>'
+		'</linearGradient>'
+		f'<radialGradient id="glow" cx="0.5" cy="0.62" r="0.5"><stop offset="0" stop-color="{PASTEL}" stop-opacity="0.22"/>'
+		f'<stop offset="1" stop-color="{PASTEL}" stop-opacity="0"/></radialGradient>'
+		f'<radialGradient id="moonglow"><stop offset="0" stop-color="{LAVENDER}" stop-opacity="0.18"/>'
+		f'<stop offset="1" stop-color="{LAVENDER}" stop-opacity="0"/></radialGradient>'
+		'<linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">'
+		f'<stop offset="0" stop-color="{NIGHT}" stop-opacity="0"/><stop offset="1" stop-color="{NIGHT}"/>'
+		'</linearGradient>'
+		'</defs>'
+		f'<rect width="{w}" height="{h}" fill="url(#sky)"/>'
+	)
+
+
+def _stars(rng: random.Random, w: float, h: float, avoid: tuple[float, float, float]) -> str:
+	ax, ay, ar = avoid
+	parts = []
+	for _ in range(220):
+		x, y = rng.uniform(0, w), rng.uniform(0, h * 0.62) ** 1.08 * (h * 0.62) ** -0.08
+		if math.hypot(x - ax, y - ay) < ar:
+			continue
+		r = rng.choice((1.2, 1.6, 2.0, 2.4, 3.2))
+		colour = rng.choice((LAVENDER, LAVENDER, PAPER))
+		parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{colour}" opacity="{rng.uniform(0.25, 0.9):.2f}"/>')
+	# A few four-point sparkles, like the logo's stars grown up
+	for _ in range(6):
+		x, y, s = rng.uniform(w * 0.05, w * 0.95), rng.uniform(h * 0.05, h * 0.45), rng.uniform(10, 18)
+		if math.hypot(x - ax, y - ay) < ar * 1.3:
+			continue
+		d = f'M{x:.1f} {y - s:.1f} L{x + s * 0.22:.1f} {y - s * 0.22:.1f} L{x + s:.1f} {y:.1f} L{x + s * 0.22:.1f} {y + s * 0.22:.1f} L{x:.1f} {y + s:.1f} L{x - s * 0.22:.1f} {y + s * 0.22:.1f} L{x - s:.1f} {y:.1f} L{x - s * 0.22:.1f} {y - s * 0.22:.1f} Z'
+		parts.append(f'<path fill="{LAVENDER}" opacity="0.8" d="{d}"/>')
+	return ''.join(parts)
+
+
+def wallpaper_twilight(aspect: str) -> str:
+	"""The logo as a landscape: twin peaks under the crescent moon, at twilight."""
+	w = WALLPAPER_WIDTH
+	h = WALLPAPER_SIZES[aspect][0][1]
+	cx = w / 2
+	rng = random.Random(20260925)
+
+	# The moon: the logo's crescent, scaled up, above the valley between the peaks
+	r = h * 0.055
+	mx, my = cx + h * 0.01, h * 0.24
+	(ox, oy, orr), (kx, ky, kr) = MOON_OUTER, MOON_CUT
+	moon = crescent_path((mx, my, r), (mx + (kx - ox) / orr * r, my + (ky - oy) / orr * r, kr / orr * r))
+
+	# The peaks: the logo's M, scaled so its base sits at 90% of the height, and
+	# lit by the moon: the slopes facing it light, the outer slopes in shade,
+	# moonlight catching the ridges of the valley between them
+	k = h * 0.0085
+	base = h * 0.9
+
+	def at(x: float, y: float) -> tuple[float, float]:
+		return cx + (x - 50) * k, base - (86 - y) * k
+
+	def poly(colour: str, *pts: tuple[float, float]) -> str:
+		return f'<polygon fill="{colour}" points="{" ".join(f"{x:.1f},{y:.1f}" for x, y in (at(*p) for p in pts))}"/>'
+
+	faces = (
+		poly('#5E2C4E', (8, 86), (32, 30), (29, 86))  # left peak, outer (shade)
+		+ poly(ROSE, (32, 30), (50, 62), (50, 86), (29, 86))  # left peak, facing the moon
+		+ poly(ROSE, (50, 62), (68, 30), (71, 86), (50, 86))  # right peak, facing the moon
+		+ poly('#5E2C4E', (68, 30), (92, 86), (71, 86))  # right peak, outer (shade)
+	)
+	moonlit = ' '.join(f'{x:.1f},{y:.1f}' for x, y in (at(32, 30), at(50, 62), at(68, 30)))
+
+	body = _sky(w, h)
+	body += f'<rect width="{w}" height="{h}" fill="url(#glow)"/>'
+	body += _stars(rng, w, h, (mx, my, r * 3))
+	body += f'<circle cx="{mx:.1f}" cy="{my:.1f}" r="{r * 3.2:.1f}" fill="url(#moonglow)"/>'
+	body += f'<path fill="{LAVENDER}" d="{moon}"/>'
+	body += _fill_below(_ridge(rng, w, h * 0.64, h * 0.11, 0.62), h, '#3A2140')  # far range, in the haze
+	body += _fill_below(_ridge(rng, w, h * 0.77, h * 0.08, 0.6), h, '#4E2646')  # side ranges
+	body += faces
+	body += f'<polyline fill="none" stroke="{PASTEL}" stroke-width="{h * 0.0035:.1f}" stroke-linejoin="miter" stroke-linecap="round" opacity="0.9" points="{moonlit}"/>'
+	body += _fill_below(_ridge(rng, w, h * 0.88, h * 0.045, 0.6), h, '#1C1022')  # foothills
+	body += f'<rect y="{h * 0.8:.1f}" width="{w}" height="{h * 0.2:.1f}" fill="url(#floor)"/>'
+	return svg(w, h, body, 'MorvaneOS wallpaper: Twilight Peaks')
+
+
+def wallpaper_minimal(aspect: str) -> str:
+	"""Night, a soft glow and the mark: quiet enough for a lock screen."""
+	w = WALLPAPER_WIDTH
+	h = WALLPAPER_SIZES[aspect][0][1]
+	size = h * 0.16
+	body = (
+		'<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">'
+		f'<stop offset="0" stop-color="#0B070E"/><stop offset="1" stop-color="#1A1020"/></linearGradient>'
+		f'<radialGradient id="halo"><stop offset="0" stop-color="{PASTEL}" stop-opacity="0.12"/>'
+		f'<stop offset="1" stop-color="{PASTEL}" stop-opacity="0"/></radialGradient></defs>'
+		f'<rect width="{w}" height="{h}" fill="url(#bg)"/>'
+		f'<circle cx="{w / 2}" cy="{h / 2}" r="{size * 1.6:.1f}" fill="url(#halo)"/>'
+	)
+	body += placed_mark('pastel', w / 2 - size / 2, h / 2 - size / 2, size)
+	return svg(w, h, body, 'MorvaneOS wallpaper: Minimal')
+
+
 # ---------------------------------------------------------------- output
 
 
@@ -259,45 +393,62 @@ def write(path: Path, text: str) -> None:
 	path.write_text(text)
 
 
-def build_svgs() -> dict[str, Path]:
+# Output layout: svg/<asset>/<variant>.svg and png/<asset>/<variant>/<size>.png
+Asset = tuple[str, str]  # (asset, variant), e.g. ('lockup-oneline', 'dark')
+
+
+def build_svgs() -> dict[Asset, Path]:
 	out = ROOT / 'svg'
 	shutil.rmtree(out, ignore_errors=True)
-	files: dict[str, Path] = {}
+	files: dict[Asset, Path] = {}
 
-	def add(name: str, text: str) -> None:
-		files[name] = out / f'{name}.svg'
-		write(files[name], text)
+	def add(asset: str, variant: str, text: str) -> None:
+		files[asset, variant] = out / asset / f'{variant}.svg'
+		write(files[asset, variant], text)
 
 	for scheme in SCHEMES:
-		add(f'mark-{scheme}', svg(100, 100, mark_elements(scheme), 'MorvaneOS'))
+		add('mark', scheme, svg(100, 100, mark_elements(scheme), 'MorvaneOS'))
 		# Tiny sizes: moon and stars turn to specks, so just the peaks
-		add(f'favicon-{scheme}', svg(100, 100, mark_elements(scheme, stars=False, moon=False), 'MorvaneOS'))
+		add('favicon', scheme, svg(100, 100, mark_elements(scheme, stars=False, moon=False), 'MorvaneOS'))
 	for theme in ('light', 'dark'):
-		add(f'lockup-horizontal-{theme}', lockup_horizontal(theme))
-		add(f'lockup-stacked-{theme}', lockup_stacked(theme))
-		add(f'lockup-oneline-{theme}', lockup_oneline(theme))
-		add(f'app-icon-{theme}', app_icon(theme))
+		add('lockup-horizontal', theme, lockup_horizontal(theme))
+		add('lockup-stacked', theme, lockup_stacked(theme))
+		add('lockup-oneline', theme, lockup_oneline(theme))
+		add('app-icon', theme, app_icon(theme))
+	for aspect in WALLPAPER_SIZES:
+		add('wallpaper', f'twilight-{aspect}', wallpaper_twilight(aspect))
+		add('wallpaper', f'minimal-{aspect}', wallpaper_minimal(aspect))
 	return files
 
 
-def build_pngs(svgs: dict[str, Path]) -> None:
+# Pixel sizes per asset: widths for most, full WxH for wallpapers
+PNG_SIZES = {
+	'mark': (64, 128, 256, 512, 1024),
+	'app-icon': (64, 128, 256, 512, 1024),
+	'favicon': (16, 32, 48),
+	'lockup-horizontal': (800, 1600),
+	'lockup-stacked': (800, 1600),
+	'lockup-oneline': (800, 1600),
+}
+
+
+def build_pngs(svgs: dict[Asset, Path]) -> None:
 	out = ROOT / 'png'
 	shutil.rmtree(out, ignore_errors=True)
-	out.mkdir(parents=True)
 
-	def render(src: Path, dest: Path, width: int) -> None:
-		subprocess.run(['rsvg-convert', '-w', str(width), '-o', str(dest), str(src)], check=True)
+	def render(src: Path, dest: Path, width: int, height: int | None = None) -> None:
+		dest.parent.mkdir(parents=True, exist_ok=True)
+		size = ['-w', str(width)] + (['-h', str(height)] if height else [])
+		subprocess.run(['rsvg-convert', *size, '-o', str(dest), str(src)], check=True)
 
-	for name, src in svgs.items():
-		if name.startswith(('mark-', 'app-icon-')):
-			for px in (64, 128, 256, 512, 1024):
-				render(src, out / f'{name}-{px}.png', px)
-		elif name.startswith('favicon-'):
-			for px in (16, 32, 48):
-				render(src, out / f'{name}-{px}.png', px)
-		else:  # lockups: 1x and 2x
-			render(src, out / f'{name}.png', 800)
-			render(src, out / f'{name}@2x.png', 1600)
+	for (asset, variant), src in svgs.items():
+		if asset == 'wallpaper':
+			name, aspect = variant.rsplit('-', 1)
+			for w, h in WALLPAPER_SIZES[aspect]:
+				render(src, out / asset / name / f'{w}x{h}.png', w, h)
+		else:
+			for px in PNG_SIZES[asset]:
+				render(src, out / asset / variant / f'{px}.png', px)
 
 
 def build_ascii(cols: int = 44) -> None:
@@ -381,4 +532,4 @@ if __name__ == '__main__':
 	build_pngs(svgs)
 	build_swatches()
 	build_ascii()
-	print(f'Built {len(svgs)} SVGs, PNGs and ASCII art in {ROOT}')
+	print(f'Built {len(svgs)} SVGs, their PNGs and the ASCII art in {ROOT}')

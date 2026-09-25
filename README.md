@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="png/lockup-stacked-dark.png">
-    <img src="png/lockup-stacked-light.png" alt="MorvaneOS Linux" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="png/lockup-stacked/dark/800.png">
+    <img src="png/lockup-stacked/light/800.png" alt="MorvaneOS Linux" width="320">
   </picture>
 </p>
 
@@ -46,33 +46,52 @@ converted to outlines, so no font needs to be installed to display them.
 
 ## Files
 
-### The mark
+Every asset has its own folder:
 
-| File | For |
+```
+svg/<asset>/<variant>.svg           svg/lockup-oneline/dark.svg
+png/<asset>/<variant>/<size>.png    png/lockup-oneline/dark/800.png
+```
+
+### The mark (`mark/`, `favicon/`)
+
+| Variant | For |
 |---|---|
-| `svg/mark-pastel.svg` | Dark backgrounds (full colour: pink peaks, lavender moon and stars) |
-| `svg/mark-rose.svg` | Light backgrounds |
-| `svg/mark-night.svg`, `svg/mark-white.svg` | One colour, e.g. stamped on hardware, merch, monochrome UI |
-| `svg/favicon-*.svg` | 48 px and smaller: just the peaks, since the moon and stars turn into specks |
+| `pastel` | Dark backgrounds (full colour: pink peaks, lavender moon and stars) |
+| `rose` | Light backgrounds |
+| `night`, `white` | One colour, e.g. stamped on hardware, merch, monochrome UI |
 
-PNGs of each at 64, 128, 256, 512 and 1024 px (`png/mark-pastel-256.png`),
-favicons at 16, 32 and 48 px.
+`mark` PNGs at 64, 128, 256, 512 and 1024 px (`png/mark/pastel/256.png`).
+`favicon` is the same in the same variants, for 48 px and smaller: just the
+peaks, since the moon and stars turn into specks. PNGs at 16, 32 and 48 px.
 
 ### Lockups (mark + name)
 
-| File | Looks like | For |
+| Asset | Looks like | For |
 |---|---|---|
-| `lockup-horizontal-{light,dark}` | Mark, then **Morvane** over *L I N U X* | Default: READMEs, websites, docs |
-| `lockup-stacked-{light,dark}` | Mark above **MORVANE** / *L I N U X* | Splash screens, the ISO, square spaces, avatars |
-| `lockup-oneline-{light,dark}` | Mark · **Morvane** \| Linux | Narrow headers, footers, banners |
+| `lockup-horizontal` | Mark, then **Morvane** over *L I N U X* | Default: READMEs, websites, docs |
+| `lockup-stacked` | Mark above **MORVANE** / *L I N U X* | Splash screens, the ISO, square spaces, avatars |
+| `lockup-oneline` | Mark · **Morvane** \| Linux | Narrow headers, footers, banners |
 
-`light` = for light backgrounds, `dark` = for dark ones. In `svg/`, and in
-`png/` at 800 px wide plus `@2x` at 1600 px. Transparent backgrounds.
+Variants `light` (for light backgrounds) and `dark` (for dark ones). PNGs 800
+and 1600 px wide, transparent backgrounds.
 
-### App icon
+### App icon (`app-icon/`)
 
-`app-icon-light` (Night mark on Pastel Pink) and `app-icon-dark` (full-colour
-mark on Night): rounded squares, in `svg/` and as PNGs from 64 to 1024 px.
+`light` (Night mark on Pastel Pink) and `dark` (full-colour mark on Night):
+rounded squares, PNGs from 64 to 1024 px.
+
+### Wallpapers (`wallpaper/`)
+
+| | Name | |
+|---|---|---|
+| <img src="png/wallpaper/twilight/1920x1080.png" width="240"> | **Twilight** | The logo as a landscape: twin peaks lit by the crescent moon. The default desktop |
+| <img src="png/wallpaper/minimal/1920x1080.png" width="240"> | **Minimal** | The mark on night with a soft glow. Lock and login screens |
+
+SVGs in 16:9 and 16:10 (`svg/wallpaper/twilight-16x9.svg`). PNGs by screen
+size in `png/wallpaper/<name>/`: 1920x1080, 2560x1440 and 3840x2160 (16:9),
+1920x1200, 2560x1600 and 3840x2400 (16:10). Pick the one matching the screen;
+the bottom fifth stays dark, so taskbars and docks stay readable.
 
 ### Terminal art (`ascii/`)
 
